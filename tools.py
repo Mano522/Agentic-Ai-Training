@@ -3,9 +3,14 @@ import csv
 from pathlib import Path
 
 from langchain_core.tools import tool
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
 
 
-# Tool 1: Calculator
+# --------------------------------------------------
+# 1. CALCULATOR TOOL
+# --------------------------------------------------
+
 @tool
 def calculator(operation: str, numbers: list[float]) -> str:
     """Perform numerical calculations: sum, average, maximum or minimum."""
@@ -16,16 +21,12 @@ def calculator(operation: str, numbers: list[float]) -> str:
 
         if operation == "sum":
             result = sum(numbers)
-
         elif operation == "average":
             result = sum(numbers) / len(numbers)
-
         elif operation == "maximum":
             result = max(numbers)
-
         elif operation == "minimum":
             result = min(numbers)
-
         else:
             return "Unsupported operation."
 
@@ -35,7 +36,10 @@ def calculator(operation: str, numbers: list[float]) -> str:
         return f"Calculation error: {e}"
 
 
-# Tool 2: Search the research dataset
+# --------------------------------------------------
+# 2. CSV DATASET SEARCH TOOL
+# --------------------------------------------------
+
 @tool
 def search_dataset(query: str) -> str:
     """Search all columns of the local research CSV dataset using a keyword."""
@@ -63,7 +67,10 @@ def search_dataset(query: str) -> str:
         return "Research dataset file was not found."
 
 
-# Tool 3: Retrieve a specific research topic
+# --------------------------------------------------
+# 3. CSV TOPIC RETRIEVAL TOOL
+# --------------------------------------------------
+
 @tool
 def retrieve_information(topic: str) -> str:
     """Retrieve the complete dataset record for a specific research topic."""
@@ -84,9 +91,70 @@ def retrieve_information(topic: str) -> str:
         return "Research dataset file was not found."
 
 
-# Register all available tools
+# --------------------------------------------------
+# 4. RESEARCH PDF RETRIEVAL TOOL (RAG)
+# --------------------------------------------------
+
+@tool
+def search_research_documents(query: str) -> str:
+    """Search the uploaded research PDFs for relevant passages.
+    Use this tool when the user asks questions about uploaded papers,
+    research documents, their findings, methods or conclusions.
+    """
+
+    try:
+        vector_db_path = str(
+            Path(__file__).parent / "vector_db"
+        )
+
+        embeddings = OllamaEmbeddings(
+            model="nomic-embed-text"
+        )
+
+        vector_store = Chroma(
+            collection_name="research_documents",
+            embedding_function=embeddings,
+            persist_directory=vector_db_path
+        )
+
+        results = vector_store.similarity_search(
+            query,
+            k=4
+        )
+
+        if not results:
+            return "No relevant passages found in the research documents."
+
+        formatted_results = []
+
+        for i, result in enumerate(results, start=1):
+
+            source = result.metadata.get("source", "Unknown")
+            page = result.metadata.get("page", "Unknown")
+
+            formatted_results.append(
+                f"""
+                Result {i}
+                Source: {source}
+                Page: {page}
+                Content:
+                {result.page_content}
+                """
+            )
+
+        return "\n".join(formatted_results)
+
+    except Exception as e:
+        return f"Document retrieval error: {e}"
+
+
+# --------------------------------------------------
+# REGISTER ALL TOOLS
+# --------------------------------------------------
+
 TOOLS = [
     calculator,
     search_dataset,
-    retrieve_information
+    retrieve_information,
+    search_research_documents
 ]

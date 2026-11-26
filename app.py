@@ -1,50 +1,56 @@
 
 from langchain_core.messages import HumanMessage, ToolMessage
-
 from agent import agent
-
 
 print("=" * 60)
 print("             AGENTIC RESEARCH ASSISTANT")
 print("=" * 60)
+print("Type 'exit' to stop.\n")
 
-question = input("\nEnter your research question: ")
+config = {
+    "configurable": {
+        "thread_id": "research-session-1"
+    }
+}
 
-try:
+previous_message_count = 0
 
-    # Send the question to the LangGraph agent
-    result = agent.invoke({
-        "messages": [
-            HumanMessage(content=question)
-        ]
-    })
+while True:
 
-    # Display the execution trace
-    print("\n" + "=" * 60)
-    print("                 EXECUTION TRACE")
-    print("=" * 60)
+    question = input("\nYou: ")
 
-    for message in result["messages"]:
+    if question.lower().strip() in ["exit", "quit"]:
+        print("\nResearch session ended.")
+        break
 
-        # Display tool selection
-        if getattr(message, "tool_calls", None):
+    try:
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=question)]},
+            config=config
+        )
 
-            for call in message.tool_calls:
-                print("\nTool selected:", call["name"])
-                print("Arguments:", call["args"])
+        new_messages = result["messages"][previous_message_count:]
+        previous_message_count = len(result["messages"])
 
-        # Display tool output
-        if isinstance(message, ToolMessage):
-            print("Tool output:", message.content)
+        print("\nExecution trace:")
+        print("-" * 40)
+        print("Selected route:", result.get("route", "unknown"))
 
-    # Display the final response
-    print("\n" + "=" * 60)
-    print("                 FINAL RESPONSE")
-    print("=" * 60)
+        for message in new_messages:
 
-    final_message = result["messages"][-1]
+            if getattr(message, "tool_calls", None):
+                for call in message.tool_calls:
+                    print("Tool:", call["name"])
+                    print("Arguments:", call["args"])
 
-    print(final_message.content)
+            if isinstance(message, ToolMessage):
+                print("Tool result:", message.content)
 
-except Exception as e:
-    print("\nApplication error:", e)
+        print("-" * 40)
+        print("\nAssistant:")
+        print(result["messages"][-1].content)
+
+    except Exception as e:
+        print("\nExecution failed:", str(e))
+        print("Please try rephrasing your question.")
+
